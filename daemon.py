@@ -22,22 +22,31 @@ import sys
 import logging
 import sqlite3
 from terminaltables import AsciiTable
+import arrow
 
 ######### definition of objects ##################################
 ##################################################################
 
 ######### configuration
 class Configuration:
-        def __init__(self,liste):
+        def __init__(self,liste,args):
                 self.i2c = liste[1]
                 self.delay = liste[2]
                 self.lastmodified = liste[4]
+		self.loglevel = args['--log']
+		self.logfile = args['--logfile']
+		self.timezone = liste[5]
+		self.runtime = arrow.utcnow().to(self.timezone)
         def table(self):
                 tab = []
                 tab.append(['Parameters', 'Value'])
                 tab.append(['i2c', self.i2c])
                 tab.append(['delay', self.delay])
                 tab.append(['last modified', self.lastmodified])
+		tab.append(['log level', self.loglevel])
+		tab.append(['timezone', self.timezone])
+		tab.append(['log file', self.logfile])
+                tab.append(['runtime', self.runtime.format('YYYY-MM-DD HH:mm:ss ZZ')])
                 return tab
 
 ######### definition of functions ################################
@@ -54,7 +63,6 @@ def verbose(msg):
 if __name__ == '__main__':
 ######### Retrieving arguments
 	args = docopt(__doc__,version="Arduinopinic Daemon v0.01")
-	print(args)
 ######### Init logging module
         try:
 		logging.basicConfig(filename=args['--logfile'],level=int(args['--log']),
@@ -83,7 +91,7 @@ if __name__ == '__main__':
                 cursor = DBB.cursor()
 		cursor.execute("""SELECT * FROM config""")
 		config_dbb = cursor.fetchone()
-		config = Configuration(config_dbb)
+		config = Configuration(config_dbb,args)
         except Exception as error:
                 logging.critical("Unable to get configuration from database...")
                 print("Unable to get configuration from database...")
@@ -93,8 +101,7 @@ if __name__ == '__main__':
 		DBB.close()
                 sys.exit(1)
         else:
-                logging.debug("Config retrieved...")
-                verbose("Config retrieved...")
+                logging.debug("Configuration retrieved...")
+                verbose("Configuration retrieved...")
                 logging.debug(AsciiTable(config.table()).table)
                 verbose(AsciiTable(config.table()).table)
-
