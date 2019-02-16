@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*
 """Usage:	daemon.py [--verbose] [-d DB] [-l LVL] [-f LOGFILE]
 	daemon.py -h
 	daemon.py -v
@@ -12,7 +13,7 @@ Options:
   -h --help   			Show this screen
   -l --log LVL    		Specify log level [default: 10]
   -f --logfile LOGFILE  	Use the specified log file [default: dd.log]
-  -d --database DB    		Use the specified database [default: db.sqlite3]
+  -d --database DB    		Use the specified database [default: ../../db.sqlite3]
   -v --version    		Show version
   --verbose  			Verbose mode
 
@@ -23,6 +24,8 @@ import logging
 import sqlite3
 from terminaltables import AsciiTable
 import arrow
+import smbus2
+import time
 
 ######### definition of objects ##################################
 ##################################################################
@@ -35,7 +38,7 @@ class Configuration:
                 self.lastmodified = liste[4]
 		self.loglevel = args['--log']
 		self.logfile = args['--logfile']
-		self.timezone = liste[5]
+		self.timezone = liste[3]
 		self.runtime = arrow.utcnow().to(self.timezone)
         def table(self):
                 tab = []
@@ -61,6 +64,8 @@ def verbose(msg):
 ##################################################################
 
 if __name__ == '__main__':
+	nloop = 0		#counting packet received
+	ncrcok = 0		#counting packet received with crc ok
 ######### Retrieving arguments
 	args = docopt(__doc__,version="Arduinopinic Daemon v0.01")
 ######### Init logging module
@@ -89,7 +94,7 @@ if __name__ == '__main__':
 ######### Getting config
         try:
                 cursor = DBB.cursor()
-		cursor.execute("""SELECT * FROM config""")
+		cursor.execute("""SELECT * FROM Arduinopinic_config""")
 		config_dbb = cursor.fetchone()
 		config = Configuration(config_dbb,args)
         except Exception as error:
@@ -105,3 +110,49 @@ if __name__ == '__main__':
                 verbose("Configuration retrieved...")
                 logging.debug(AsciiTable(config.table()).table)
                 verbose(AsciiTable(config.table()).table)
+######### Opening i2c
+        try:
+                bus = smbus2.SMBus(1)
+        except Exception as error:
+                logging.critical("Unable to open i2c connection...")
+                print("Unable to open i2c connection...")
+                logging.critical(error)
+                print(error)
+                logging.shutdown()
+                DBB.close()
+                sys.exit(1)
+        else:
+                logging.debug("i2c connection opened...")
+                verbose("i2c connection opened...")
+		time.sleep(1) #Pause to treat opening (probably useless)
+
+######### Main loop ##############################################
+##################################################################
+	while True:
+		nloop = nloop + 1
+		nattempt = 1
+		verbose("########## PACKET N°%d#################" % nloop)
+		logging.debug("########## PACKET N°%d#################" % nloop)
+######## 5-attempt loop
+		while  nattempt < 6:
+			try:
+				tx_msg=bus.read_i2c_block_data(config.i2c,0x01,9)
+			except:
+######## no i2c so retry loop
+				if (nattempt ==5):
+					logging.error("-Last attempt failed: going to next measure")
+					verbose("-Last attempt failed: going to next measure")
+					nattempt = nattempt + 1
+					time.sleep(config.delay/10)
+				else:
+                                        logging.warning("-Attempt : %d - Not able to get I2C data" % nattempt)
+                                        verbose("-Attempt : %d - Not able to get I2C data" % nattempt)
+                                        nattempt = nattempt + 1
+					time.sleep(config.delay/10)
+				continue
+######## if msg received - crc test
+			verbose (tx_msg)
+			
+			nattempt = nattempt + 1
+			time.sleep(config.delay) #delay divise par nombre d essai
+			break
