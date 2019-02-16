@@ -26,6 +26,8 @@ from terminaltables import AsciiTable
 import arrow
 import smbus2
 import time
+from Ardui2c.lib  import RX_msg
+
 
 ######### definition of objects ##################################
 ##################################################################
@@ -136,7 +138,7 @@ if __name__ == '__main__':
 ######## 5-attempt loop
 		while  nattempt < 6:
 			try:
-				tx_msg=bus.read_i2c_block_data(config.i2c,0x01,9)
+				tx_msg = RX_msg(bus.read_i2c_block_data(config.i2c,0x01,9))
 			except:
 ######## no i2c so retry loop
 				if (nattempt ==5):
@@ -151,8 +153,7 @@ if __name__ == '__main__':
 					time.sleep(config.delay/10)
 				continue
 ######## if msg received - crc test
-			verbose (tx_msg)
-			
+			verbose (tx_msg.msg)
 			nattempt = nattempt + 1
 			time.sleep(config.delay) #delay divise par nombre d essai
 			break
