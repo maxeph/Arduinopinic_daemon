@@ -12,7 +12,7 @@ Arguments:
 Options:
   -h --help   			Show this screen
   -l --log LVL    		Specify log level [default: 10]
-  -f --logfile LOGFILE  	Use the specified log file [default: dd.log]
+  -f --logfile LOGFILE  	Use the specified log file [default: log.log]
   -d --database DB    		Use the specified database [default: ../../db.sqlite3]
   -v --version    		Show version
   --verbose  			Verbose mode
@@ -28,7 +28,6 @@ import smbus2
 import time
 from Ardui2c.lib  import RX_msg
 
-
 ######### definition of objects ##################################
 ##################################################################
 
@@ -36,7 +35,7 @@ from Ardui2c.lib  import RX_msg
 class Configuration:
         def __init__(self,liste,args):
                 self.i2c = liste[1]
-                self.delay = liste[2]
+                self.delay = float(liste[2])
                 self.lastmodified = liste[4]
 		self.loglevel = args['--log']
 		self.logfile = args['--logfile']
@@ -66,8 +65,7 @@ def verbose(msg):
 ##################################################################
 
 if __name__ == '__main__':
-	nloop = 0		#counting packet received
-	ncrcok = 0		#counting packet received with crc ok
+	nloop = nattemptg = success = ncrcok = 0
 ######### Retrieving arguments
 	args = docopt(__doc__,version="Arduinopinic Daemon v0.01")
 ######### Init logging module
@@ -131,10 +129,9 @@ if __name__ == '__main__':
 ######### Main loop ##############################################
 ##################################################################
 	while True:
-		nloop = nloop + 1
+		nloop += 1
+		nattemptg += 1
 		nattempt = 1
-		verbose("########## PACKET N°%d#################" % nloop)
-		logging.debug("########## PACKET N°%d#################" % nloop)
 ######## 5-attempt loop
 		while  nattempt < 6:
 			try:
@@ -144,16 +141,37 @@ if __name__ == '__main__':
 				if (nattempt ==5):
 					logging.error("-Last attempt failed: going to next measure")
 					verbose("-Last attempt failed: going to next measure")
-					nattempt = nattempt + 1
+					nattempt += 1
+					nattemptg += 1
 					time.sleep(config.delay/10)
 				else:
-                                        logging.warning("-Attempt : %d - Not able to get I2C data" % nattempt)
-                                        verbose("-Attempt : %d - Not able to get I2C data" % nattempt)
-                                        nattempt = nattempt + 1
+                                        logging.warning("%d/%d FAILURE: Not able to get I2C data" % (nloop,nattempt))
+                                        verbose("%d/%d FAILURE: Not able to get I2C data" % (nloop,nattempt))
+                                        nattempt += 1
+					nattemptg += 1
 					time.sleep(config.delay/10)
 				continue
 ######## if msg received - crc test
-			verbose (tx_msg.msg)
-			nattempt = nattempt + 1
-			time.sleep(config.delay) #delay divise par nombre d essai
-			break
+			if tx_msg.isvalid():
+######## crc is ok
+				success += 1
+                                verbose("%d/%d SUCCESS: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
+				verbose(tx_msg.debug())
+				logging.info("%d/%d SUCCESS: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
+				logging.debug(tx_msg.debug())
+
+				time.sleep(config.delay-((nattempt-1)*config.delay/10))
+				break
+######## crc not ok
+			else:
+				verbose("%d/%d FAILURE: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
+				verbose(tx_msg.debug())
+                                logging.warning("%d/%d FAILURE: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
+                                logging.warning(tx_msg.debug())
+				logging.warning(tx_msg.raw)
+
+				nattempt += 1
+				nattemptg += 1
+				time.sleep(config.delay/10)
+				continue
+
