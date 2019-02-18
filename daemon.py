@@ -12,7 +12,7 @@ Arguments:
 Options:
   -h --help   			Show this screen
   -l --log LVL    		Specify log level [default: 10]
-  -f --logfile LOGFILE  	Use the specified log file [default: log.log]
+  -f --logfile LOGFILE  	Use the specified log file [default: log/daemon.log]
   -d --database DB    		Use the specified database [default: ../../db.sqlite3]
   -v --version    		Show version
   --verbose  			Verbose mode
@@ -74,6 +74,7 @@ if __name__ == '__main__':
 		format='%(asctime)s %(levelname)s : %(message)s')
         except Exception as error:
 		print("Unable to init logging module...")
+		print(error)
 		sys.exit(1)
 	else:
 		logging.debug("Logging module initialised...")
@@ -139,11 +140,10 @@ if __name__ == '__main__':
 			except:
 ######## no i2c so retry loop
 				if (nattempt ==5):
-					logging.error("-Last attempt failed: going to next measure")
-					verbose("-Last attempt failed: going to next measure")
+					logging.error("%d/%d ERROR: Last attempt - i2c failed - Waiting for next measure" % (nloop,nattempt))
+					verbose("%d/%d ERROR: Last attempt - i2c failed - Waiting for next measure" % (nloop,nattempt))
 					nattempt += 1
-					nattemptg += 1
-					time.sleep(config.delay/10)
+					time.sleep(config.delay-((nattempt-1)*config.delay/10))
 				else:
                                         logging.warning("%d/%d FAILURE: Not able to get I2C data" % (nloop,nattempt))
                                         verbose("%d/%d FAILURE: Not able to get I2C data" % (nloop,nattempt))
@@ -159,19 +159,28 @@ if __name__ == '__main__':
 				verbose(tx_msg.debug())
 				logging.info("%d/%d SUCCESS: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
 				logging.debug(tx_msg.debug())
+				cursor.execute('''INSERT INTO Arduinopinic_temp_db(date, tempext, tempeau, humid)
+ 	                 VALUES(?,?,?,?)''', (tx_msg.date,tx_msg.temp,tx_msg.water,tx_msg.humid))
+				DBB.commit()
 
 				time.sleep(config.delay-((nattempt-1)*config.delay/10))
 				break
 ######## crc not ok
 			else:
-				verbose("%d/%d FAILURE: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
-				verbose(tx_msg.debug())
-                                logging.warning("%d/%d FAILURE: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
-                                logging.warning(tx_msg.debug())
-				logging.warning(tx_msg.raw)
-
-				nattempt += 1
-				nattemptg += 1
-				time.sleep(config.delay/10)
+				if (nattempt ==5):
+                                        verbose("%d/%d ERROR: Measure failed: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
+					verbose(tx_msg.debug())
+					logging.error("%d/%d ERROR: Measure failed: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
+					logging.error(tx_msg.debug())
+                                        nattempt += 1
+                                        time.sleep(config.delay-((nattempt-1)*config.delay/10))
+				else:
+					verbose("%d/%d FAILURE: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
+					verbose(tx_msg.debug())
+                	                logging.warning("%d/%d FAILURE: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
+                        	        logging.warning(tx_msg.debug())
+					nattempt += 1
+					nattemptg += 1
+					time.sleep(config.delay/10)
 				continue
 
