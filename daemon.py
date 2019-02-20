@@ -18,40 +18,18 @@ Options:
   --verbose  			Verbose mode
 
 """
-from docopt import docopt
+import os
 import sys
 import logging
 import sqlite3
+import time
+
+from docopt import docopt
 from terminaltables import AsciiTable
 import arrow
 import smbus2
-import time
-from Ardui2c.lib  import RX_msg
 
-######### definition of objects ##################################
-##################################################################
-
-######### configuration
-class Configuration:
-        def __init__(self,liste,args):
-                self.i2c = liste[1]
-                self.delay = float(liste[2])
-                self.lastmodified = liste[4]
-		self.loglevel = args['--log']
-		self.logfile = args['--logfile']
-		self.timezone = liste[3]
-		self.runtime = arrow.utcnow().to(self.timezone)
-        def table(self):
-                tab = []
-                tab.append(['Parameters', 'Value'])
-                tab.append(['i2c', self.i2c])
-                tab.append(['delay', self.delay])
-                tab.append(['last modified', self.lastmodified])
-		tab.append(['log level', self.loglevel])
-		tab.append(['timezone', self.timezone])
-		tab.append(['log file', self.logfile])
-                tab.append(['runtime', self.runtime.format('YYYY-MM-DD HH:mm:ss ZZ')])
-                return tab
+from Ardui2c.lib  import RX_msg, Configuration, Session
 
 ######### definition of functions ################################
 ##################################################################
@@ -65,7 +43,7 @@ def verbose(msg):
 ##################################################################
 
 if __name__ == '__main__':
-	nloop = nattemptg = success = ncrcok = 0
+	attempt = 0
 ######### Retrieving arguments
 	args = docopt(__doc__,version="Arduinopinic Daemon v0.01")
 ######### Init logging module
@@ -111,6 +89,13 @@ if __name__ == '__main__':
                 verbose("Configuration retrieved...")
                 logging.debug(AsciiTable(config.table()).table)
                 verbose(AsciiTable(config.table()).table)
+######### Writing session info
+        session = Session()
+	cursor.execute('''INSERT INTO Arduinopinic_session(pid, path, runtime, lastmodified, success, loop, attempts)
+                         VALUES(?,?,?,?,?,?,?)''', (session.pid,session.path,session.runtime.format(),session.runtime.format(),session.success,session.loop,session.attempts))
+	session.id = cursor.lastrowid
+	DBB.commit()
+
 ######### Opening i2c
         try:
                 bus = smbus2.SMBus(1)
@@ -130,34 +115,37 @@ if __name__ == '__main__':
 ######### Main loop ##############################################
 ##################################################################
 	while True:
-		nloop += 1
-		nattemptg += 1
+		cursor.execute('''UPDATE Arduinopinic_session SET success = ?,loop = ?,attempts = ? WHERE id = ?''',
+ (session.success,session.loop,session.attempts,session.id))
+		DBB.commit()
+
+		session.loop += 1
 		nattempt = 1
 ######## 5-attempt loop
 		while  nattempt < 6:
 			try:
+				session.attempts += 1
 				tx_msg = RX_msg(bus.read_i2c_block_data(config.i2c,0x01,9))
 			except:
 ######## no i2c so retry loop
 				if (nattempt ==5):
-					logging.error("%d/%d ERROR: Last attempt - i2c failed - Waiting for next measure" % (nloop,nattempt))
-					verbose("%d/%d ERROR: Last attempt - i2c failed - Waiting for next measure" % (nloop,nattempt))
+					logging.error("%d/%d ERROR: Last attempt - i2c failed - Waiting for next measure" % (session.loop,nattempt))
+					verbose("%d/%d ERROR: Last attempt - i2c failed - Waiting for next measure" % (session.loop,nattempt))
 					nattempt += 1
 					time.sleep(config.delay-((nattempt-1)*config.delay/10))
 				else:
-                                        logging.warning("%d/%d FAILURE: Not able to get I2C data" % (nloop,nattempt))
-                                        verbose("%d/%d FAILURE: Not able to get I2C data" % (nloop,nattempt))
+                                        logging.warning("%d/%d FAILURE: Not able to get I2C data" % (session.loop,nattempt))
+                                        verbose("%d/%d FAILURE: Not able to get I2C data" % (session.loop,nattempt))
                                         nattempt += 1
-					nattemptg += 1
 					time.sleep(config.delay/10)
 				continue
 ######## if msg received - crc test
 			if tx_msg.isvalid():
 ######## crc is ok
-				success += 1
-                                verbose("%d/%d SUCCESS: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
+				session.success += 1
+                                verbose("%d/%d SUCCESS: %s | success rate: %.2f" % (session.loop,nattempt,tx_msg.info(),float(session.success)/session.attempts*100))
 				verbose(tx_msg.debug())
-				logging.info("%d/%d SUCCESS: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
+				logging.info("%d/%d SUCCESS: %s | success rate: %.2f" % (session.loop,nattempt,tx_msg.info(),float(session.success)/session.attempts*100))
 				logging.debug(tx_msg.debug())
 				cursor.execute('''INSERT INTO Arduinopinic_temp_db(date, tempext, tempeau, humid)
  	                 VALUES(?,?,?,?)''', (tx_msg.date,tx_msg.temp,tx_msg.water,tx_msg.humid))
@@ -168,19 +156,17 @@ if __name__ == '__main__':
 ######## crc not ok
 			else:
 				if (nattempt ==5):
-                                        verbose("%d/%d ERROR: Measure failed: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
+                                        verbose("%d/%d ERROR: Measure failed: %s | success rate: %.2f" % (session.loop,nattempt,tx_msg.info(),float(session.success)/session.attempts*100))
 					verbose(tx_msg.debug())
-					logging.error("%d/%d ERROR: Measure failed: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
+					logging.error("%d/%d ERROR: Measure failed: %s | success rate: %.2f" % (session.loop,nattempt,tx_msg.info(),float(session.success)/session.attempts*100))
 					logging.error(tx_msg.debug())
                                         nattempt += 1
                                         time.sleep(config.delay-((nattempt-1)*config.delay/10))
 				else:
-					verbose("%d/%d FAILURE: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
+					verbose("%d/%d FAILURE: %s | success rate: %.2f" % (session.loop,nattempt,tx_msg.info(),float(session.success)/session.attempts*100))
 					verbose(tx_msg.debug())
-                	                logging.warning("%d/%d FAILURE: %s | success rate: %.2f" % (nloop,nattempt,tx_msg.info(),float(success)/nattemptg*100))
+                	                logging.warning("%d/%d FAILURE: %s | success rate: %.2f" % (session.loop,nattempt,tx_msg.info(),float(session.success)/session.attempts*100))
                         	        logging.warning(tx_msg.debug())
 					nattempt += 1
-					nattemptg += 1
 					time.sleep(config.delay/10)
 				continue
-

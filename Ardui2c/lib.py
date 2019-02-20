@@ -1,5 +1,7 @@
-import crcmod.predefined
+import os
 import struct
+
+import crcmod.predefined
 import arrow
 
 class RX_msg:
@@ -40,3 +42,32 @@ class RX_msg:
         return "\t%s    ||    RXCRC : %s | LOCCRC : %s" % (self.raw,self.rxcrc,self.localcrc)
     def info(self):
 	return "temp ext: %.2f | temp eau: %.2f | humid: %.2f" % (self.temp,self.water,self.humid)
+
+class Configuration:
+        def __init__(self,liste,args):
+                self.i2c = liste[5]
+                self.delay = float(liste[1])
+                self.lastmodified = liste[3]
+		self.loglevel = args['--log']
+		self.logfile = args['--logfile']
+		self.timezone = liste[2]
+        def table(self):
+                tab = []
+                tab.append(['Parameters', 'Value'])
+                tab.append(['i2c', self.i2c])
+                tab.append(['delay', self.delay])
+                tab.append(['last modified', self.lastmodified])
+		tab.append(['log level', self.loglevel])
+		tab.append(['timezone', self.timezone])
+		tab.append(['log file', self.logfile])
+                return tab
+
+class Session:
+        def __init__(self):
+                self.pid = os.getpid()
+                self.path = os.path.abspath(__file__)
+                self.runtime = arrow.utcnow()
+		self.success = 0
+		self.attempts = 0
+		self.loop = 0
+		self.id = 0
