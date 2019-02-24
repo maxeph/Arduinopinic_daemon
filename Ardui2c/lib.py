@@ -45,12 +45,12 @@ class RX_msg:
 
 class Configuration:
         def __init__(self,liste,args):
-                self.i2c = liste[5]
-                self.delay = float(liste[1])
-                self.lastmodified = liste[3]
+                self.i2c = liste[1]
+                self.delay = float(liste[2])
+                self.lastmodified = liste[4]
 		self.loglevel = args['--log']
 		self.logfile = args['--logfile']
-		self.timezone = liste[2]
+		self.timezone = liste[3]
         def table(self):
                 tab = []
                 tab.append(['Parameters', 'Value'])
