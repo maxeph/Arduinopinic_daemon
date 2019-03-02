@@ -31,6 +31,7 @@ import smbus2
 
 from Ardui2c.lib  import RX_msg, Configuration, Session
 
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 ######### definition of functions ################################
 ##################################################################
 
