@@ -38,8 +38,8 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 ######### function verbose
 def verbose(msg):
 	if args['--verbose'] == True:
-		print msg
-
+		print(msg)
+	
 ######### Program ################################################
 ##################################################################
 
@@ -48,10 +48,10 @@ if __name__ == '__main__':
 ######### Retrieving arguments
 	args = docopt(__doc__,version="Arduinopinic Daemon v0.01")
 ######### Init logging module
-        try:
+	try:
 		logging.basicConfig(filename=args['--logfile'],level=int(args['--log']),
 		format='%(asctime)s %(levelname)s : %(message)s')
-        except Exception as error:
+	except Exception as error:
 		print("Unable to init logging module...")
 		print(error)
 		sys.exit(1)
@@ -67,50 +67,50 @@ if __name__ == '__main__':
 		logging.critical(error)
 		print(error)
 		logging.shutdown()
-                sys.exit(1)
-        else:
-                logging.debug("Database opened...")
+		sys.exit(1)
+	else:
+		logging.debug("Database opened...")
 		verbose("Database opened...")
 ######### Getting config
-        try:
-                cursor = DBB.cursor()
+	try:
+		cursor = DBB.cursor()
 		cursor.execute("""SELECT * FROM Arduinopinic_config""")
 		config_dbb = cursor.fetchone()
 		config = Configuration(config_dbb,args)
-        except Exception as error:
-                logging.critical("Unable to get configuration from database...")
-                print("Unable to get configuration from database...")
-                logging.critical(error)
-                print(error)
+	except Exception as error:
+		logging.critical("Unable to get configuration from database...")
+		print("Unable to get configuration from database...")
+		logging.critical(error)
+		print(error)
 		logging.shutdown()
 		DBB.close()
-                sys.exit(1)
-        else:
-                logging.debug("Configuration retrieved...")
-                verbose("Configuration retrieved...")
-                logging.debug(AsciiTable(config.table()).table)
-                verbose(AsciiTable(config.table()).table)
+		sys.exit(1)
+	else:
+		logging.debug("Configuration retrieved...")
+		verbose("Configuration retrieved...")
+		logging.debug(AsciiTable(config.table()).table)
+		verbose(AsciiTable(config.table()).table)
 ######### Writing session info
-        session = Session()
+	session = Session()
 	cursor.execute('''INSERT INTO Arduinopinic_session(pid, path, runtime, lastmodified, success, loop, attempts)
                          VALUES(?,?,?,?,?,?,?)''', (session.pid,session.path,session.runtime.format(),session.runtime.format(),session.success,session.loop,session.attempts))
 	session.id = cursor.lastrowid
 	DBB.commit()
 
 ######### Opening i2c
-        try:
-                bus = smbus2.SMBus(1)
-        except Exception as error:
-                logging.critical("Unable to open i2c connection...")
-                print("Unable to open i2c connection...")
-                logging.critical(error)
-                print(error)
-                logging.shutdown()
-                DBB.close()
-                sys.exit(1)
-        else:
-                logging.debug("i2c connection opened...")
-                verbose("i2c connection opened...")
+	try:
+		bus = smbus2.SMBus(1)
+	except Exception as error:
+		logging.critical("Unable to open i2c connection...")
+		print("Unable to open i2c connection...")
+		logging.critical(error)
+		print(error)
+		logging.shutdown()
+		DBB.close()
+		sys.exit(1)
+	else:
+		logging.debug("i2c connection opened...")
+		verbose("i2c connection opened...")
 		time.sleep(1) #Pause to treat opening (probably useless)
 
 ######### Main loop ##############################################
@@ -135,16 +135,16 @@ if __name__ == '__main__':
 					nattempt += 1
 					time.sleep(config.delay-((nattempt-1)*config.delay/10))
 				else:
-                                        logging.warning("%d/%d FAILURE: Not able to get I2C data" % (session.loop,nattempt))
-                                        verbose("%d/%d FAILURE: Not able to get I2C data" % (session.loop,nattempt))
-                                        nattempt += 1
+					logging.warning("%d/%d FAILURE: Not able to get I2C data" % (session.loop,nattempt))
+					verbose("%d/%d FAILURE: Not able to get I2C data" % (session.loop,nattempt))
+					nattempt += 1
 					time.sleep(config.delay/10)
 				continue
 ######## if msg received - crc test
 			if tx_msg.isvalid():
 ######## crc is ok
 				session.success += 1
-                                verbose("%d/%d SUCCESS: %s | success rate: %.2f" % (session.loop,nattempt,tx_msg.info(),float(session.success)/session.attempts*100))
+				verbose("%d/%d SUCCESS: %s | success rate: %.2f" % (session.loop,nattempt,tx_msg.info(),float(session.success)/session.attempts*100))
 				verbose(tx_msg.debug())
 				logging.info("%d/%d SUCCESS: %s | success rate: %.2f" % (session.loop,nattempt,tx_msg.info(),float(session.success)/session.attempts*100))
 				logging.debug(tx_msg.debug())
@@ -157,17 +157,17 @@ if __name__ == '__main__':
 ######## crc not ok
 			else:
 				if (nattempt ==5):
-                                        verbose("%d/%d ERROR: Measure failed: %s | success rate: %.2f" % (session.loop,nattempt,tx_msg.info(),float(session.success)/session.attempts*100))
+					verbose("%d/%d ERROR: Measure failed: %s | success rate: %.2f" % (session.loop,nattempt,tx_msg.info(),float(session.success)/session.attempts*100))
 					verbose(tx_msg.debug())
 					logging.error("%d/%d ERROR: Measure failed: %s | success rate: %.2f" % (session.loop,nattempt,tx_msg.info(),float(session.success)/session.attempts*100))
 					logging.error(tx_msg.debug())
-                                        nattempt += 1
-                                        time.sleep(config.delay-((nattempt-1)*config.delay/10))
+					nattempt += 1
+					time.sleep(config.delay-((nattempt-1)*config.delay/10))
 				else:
 					verbose("%d/%d FAILURE: %s | success rate: %.2f" % (session.loop,nattempt,tx_msg.info(),float(session.success)/session.attempts*100))
 					verbose(tx_msg.debug())
-                	                logging.warning("%d/%d FAILURE: %s | success rate: %.2f" % (session.loop,nattempt,tx_msg.info(),float(session.success)/session.attempts*100))
-                        	        logging.warning(tx_msg.debug())
+					logging.warning("%d/%d FAILURE: %s | success rate: %.2f" % (session.loop,nattempt,tx_msg.info(),float(session.success)/session.attempts*100))
+					logging.warning(tx_msg.debug())
 					nattempt += 1
 					time.sleep(config.delay/10)
 				continue
