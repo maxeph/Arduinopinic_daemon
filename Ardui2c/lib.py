@@ -30,7 +30,7 @@ class RX_msg:
 		while nb < (len(self.msg)):     #minus 2 to avoid taking into account CRC bytes
 			crc.update(chr(self.msg[nb]))
 			nb=nb+1
-			self.localcrc = hex(crc.crcValue)
+		self.localcrc = hex(crc.crcValue)
 		if len(self.localcrc[2:]) == 3:
 			self.localcrc = "0x0" + self.localcrc[2:]
 ######
