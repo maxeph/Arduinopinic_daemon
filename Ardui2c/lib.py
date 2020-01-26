@@ -26,16 +26,13 @@ class RX_msg:
 
 ######calculate crc
 		crc = crcmod.predefined.Crc('xmodem')
-		nb = 0
-		while nb < (len(self.msg)):     #minus 2 to avoid taking into account CRC bytes
-			crc.update(chr(self.msg[nb]))
-			nb=nb+1
+		crc.update(bytearray(self.msg))
 		self.localcrc = hex(crc.crcValue)
 		if len(self.localcrc[2:]) == 3:
 			self.localcrc = "0x0" + self.localcrc[2:]
 ######
 	def _get_int(self,data):
-		return struct.unpack('h', "".join(map(chr, data)))[0]
+		return struct.unpack('h', bytearray(data))[0]
 	def isvalid(self):
 		return self.localcrc==self.rxcrc
 	def debug(self):
